@@ -1,0 +1,36 @@
+name: Build on push lineage-21-test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ lineage-21-test ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout kernel source
+      uses: actions/checkout@v6
+
+    - name: Checkout zipper
+      uses: actions/checkout@v6
+      with:
+        repository: cyberc3dr/AnyKernel3
+        path: zipper
+
+    - name: Android kernel build
+      uses: cyberc3dr/android-kernel-actions@onclite
+      id: build
+      env:
+        NAME: onclite
+      with:
+        arch: arm64
+        compiler: proton-clang/master
+        defconfig: onclite-perf_defconfig
+        image: Image
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v6
+      with:
+        name: onclite
+        path: zipper/*.zip
