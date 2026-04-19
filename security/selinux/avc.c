@@ -44,13 +44,6 @@
 #define avc_cache_stats_incr(field)	do {} while (0)
 #endif
 
-#ifdef CONFIG_KSU_SUSFS
-extern u32 susfs_ksu_sid;
-extern u32 susfs_priv_app_sid;
-bool susfs_is_avc_log_spoofing_enabled = false;
-#endif
-
-
 struct avc_entry {
 	u32			ssid;
 	u32			tsid;
@@ -165,16 +158,6 @@ static void avc_dump_query(struct audit_buffer *ab, u32 ssid, u32 tsid, u16 tcla
 	}
 
 	rc = security_sid_to_context(tsid, &scontext, &scontext_len);
-#ifdef CONFIG_KSU_SUSFS
-	if (unlikely(tsid == susfs_ksu_sid && susfs_is_avc_log_spoofing_enabled)) {
-		if (rc)
-			audit_log_format(ab, " tsid=%d", susfs_priv_app_sid);
-		else
-			audit_log_format(ab, " tcontext=%s", "u:r:priv_app:s0:c512,c768");
-		goto bypass_orig_flow;
-	}
-#endif
-
 	if (rc)
 		audit_log_format(ab, " tsid=%d", tsid);
 	else {
@@ -182,9 +165,6 @@ static void avc_dump_query(struct audit_buffer *ab, u32 ssid, u32 tsid, u16 tcla
 		kfree(scontext);
 	}
 
-#ifdef CONFIG_KSU_SUSFS
-bypass_orig_flow:
-#endif
 	BUG_ON(!tclass || tclass >= ARRAY_SIZE(secclass_map));
 	audit_log_format(ab, " tclass=%s", secclass_map[tclass-1].name);
 }
@@ -756,6 +736,10 @@ static void avc_audit_post_callback(struct audit_buffer *ab, void *a)
 	}
 }
 
+#ifdef CONFIG_KSU
+extern int ksu_handle_slow_avc_audit_new(u32 tsid, u16 *tclass);
+#endif
+
 /* This is the slow part of avc audit with big stack footprint */
 noinline int slow_avc_audit(u32 ssid, u32 tsid, u16 tclass,
 		u32 requested, u32 audited, u32 denied, int result,
@@ -765,6 +749,11 @@ noinline int slow_avc_audit(u32 ssid, u32 tsid, u16 tclass,
 	struct common_audit_data stack_data;
 	struct selinux_audit_data sad;
 
+#ifdef CONFIG_KSU
+	ksu_handle_slow_avc_audit_new(tsid, &tclass);
+	if (!tclass)
+		return 0;	
+#endif	
 	if (!a) {
 		a = &stack_data;
 		a->type = LSM_AUDIT_DATA_NONE;
