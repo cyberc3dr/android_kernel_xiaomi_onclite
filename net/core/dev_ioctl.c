@@ -6,6 +6,12 @@
 #include <linux/wireless.h>
 #include <net/wext.h>
 
+#ifdef CONFIG_VPNHIDE
+extern bool vpnhide_is_target_uid(void);
+extern bool vpnhide_is_vpn_ifname(const char *name);
+extern bool vpnhide_debug_enabled;
+#endif
+
 /*
  *	Map an interface index to its name (SIOCGIFNAME)
  */
@@ -90,6 +96,10 @@ static int dev_ifconf(struct net *net, char __user *arg)
 
 	total = 0;
 	for_each_netdev(net, dev) {
+#ifdef CONFIG_VPNHIDE
+		if (vpnhide_is_target_uid() && vpnhide_is_vpn_ifname(dev->name))
+			continue;
+#endif		
 		for (i = 0; i < NPROTO; i++) {
 			if (gifconf_list[i]) {
 				int done;
@@ -408,8 +418,24 @@ int dev_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 		rtnl_unlock();
 		return ret;
 	}
+#ifdef CONFIG_VPNHIDE
+	if (cmd == SIOCGIFNAME) {
+		struct ifreq __kifr;
+		int __r = dev_ifname(net, (struct ifreq __user *)arg);
+		if (!__r && vpnhide_is_target_uid() &&
+		    !copy_from_user(&__kifr, arg, sizeof(__kifr)) &&
+		    vpnhide_is_vpn_ifname(__kifr.ifr_name)) {
+			if (vpnhide_debug_enabled)
+				pr_info("vpnhide: dev_ioctl: hiding SIOCGIFNAME iface=%s\n",
+				    __kifr.ifr_name);
+			return -ENODEV;
+		}
+		return __r;
+	}
+#else
 	if (cmd == SIOCGIFNAME)
 		return dev_ifname(net, (struct ifreq __user *)arg);
+#endif
 
 	if (copy_from_user(&ifr, arg, sizeof(struct ifreq)))
 		return -EFAULT;
@@ -443,6 +469,15 @@ int dev_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 		rcu_read_lock();
 		ret = dev_ifsioc_locked(net, &ifr, cmd);
 		rcu_read_unlock();
+#ifdef CONFIG_VPNHIDE
+		if (!ret && vpnhide_is_target_uid() &&
+		    vpnhide_is_vpn_ifname(ifr.ifr_name)) {
+			if (vpnhide_debug_enabled)
+				pr_info("vpnhide: dev_ioctl: hiding iface=%s cmd=0x%x\n",
+				    ifr.ifr_name, cmd);
+			return -ENODEV;
+		}
+#endif		
 		if (!ret) {
 			if (colon)
 				*colon = ':';

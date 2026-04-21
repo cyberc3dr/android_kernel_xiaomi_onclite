@@ -84,6 +84,12 @@
 #include <trace/events/fib.h>
 #include "fib_lookup.h"
 
+#ifdef CONFIG_VPNHIDE
+extern bool vpnhide_is_target_uid(void);
+extern bool vpnhide_is_vpn_ifname(const char *name);
+extern bool vpnhide_debug_enabled;
+#endif
+
 static BLOCKING_NOTIFIER_HEAD(fib_chain);
 
 int register_fib_notifier(struct notifier_block *nb)
@@ -2629,6 +2635,17 @@ static int fib_route_seq_show(struct seq_file *seq, void *v)
 			continue;
 
 		seq_setwidth(seq, 127);
+
+#ifdef CONFIG_VPNHIDE
+		if (vpnhide_is_target_uid() &&
+		    fi && fi->fib_dev &&
+		    vpnhide_is_vpn_ifname(fi->fib_dev->name)) {
+			if (vpnhide_debug_enabled)
+				pr_info("vpnhide: fib_route_seq_show: hiding route for %s\n",
+				    fi->fib_dev->name);
+			continue;
+		}
+#endif		
 
 		if (fi)
 			seq_printf(seq,

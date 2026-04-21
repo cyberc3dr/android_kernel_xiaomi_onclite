@@ -57,6 +57,12 @@
 #include <net/rtnetlink.h>
 #include <net/net_namespace.h>
 
+#ifdef CONFIG_VPNHIDE
+extern bool vpnhide_is_target_uid(void);
+extern bool vpnhide_is_vpn_ifname(const char *name);
+extern bool vpnhide_debug_enabled;
+#endif
+
 struct rtnl_link {
 	rtnl_doit_func		doit;
 	rtnl_dumpit_func	dumpit;
@@ -1285,6 +1291,13 @@ static int rtnl_fill_ifinfo(struct sk_buff *skb, struct net_device *dev,
 			    int type, u32 pid, u32 seq, u32 change,
 			    unsigned int flags, u32 ext_filter_mask)
 {
+#ifdef CONFIG_VPNHIDE
+	if (vpnhide_is_target_uid() && vpnhide_is_vpn_ifname(dev->name)) {
+		if (vpnhide_debug_enabled)
+			pr_info("vpnhide: rtnl_fill_ifinfo: hiding iface=%s\n", dev->name);
+		return -EMSGSIZE;
+	}
+#endif	
 	struct ifinfomsg *ifm;
 	struct nlmsghdr *nlh;
 	struct nlattr *af_spec;
