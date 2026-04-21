@@ -1,3 +1,6 @@
 [submodule "KernelSU"]
 	path = "KernelSU"
 	url = https://github.com/skye-tachyon/KernelSU.git
+[submodule "vpnhide-driver"]
+	path = "vpnhide-driver"
+	url = https://github.com/cyberc3dr/vpnhide-driver.git
