@@ -1,9 +1,9 @@
-name: Build on push lineage-21-test
+name: Build on push lineage-21-rksu
 
 on:
   workflow_dispatch:
   push:
-    branches: [ lineage-21-test ]
+    branches: [ lineage-21-rksu ]
 
 jobs:
   build:
